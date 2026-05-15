@@ -44,6 +44,20 @@ defmodule Volt.DevServerTest do
       conn = call_dev_server("/assets/app.ts")
       assert conn.resp_body =~ "sourceMappingURL=data:application/json;base64,"
     end
+
+    test "replaces import.meta.env defines in development" do
+      File.write!(Path.join(@fixture_dir, "src/env.ts"), """
+      document.body.dataset.mode = import.meta.env.MODE
+      document.body.dataset.dev = String(import.meta.env.DEV)
+      """)
+
+      conn = call_dev_server("/assets/env.ts")
+      assert conn.status == 200
+      assert conn.resp_body =~ ~s(document.body.dataset.mode = "development")
+      assert conn.resp_body =~ "document.body.dataset.dev = String(true)"
+      refute conn.resp_body =~ "import.meta.env.MODE"
+      refute conn.resp_body =~ "import.meta.env.DEV"
+    end
   end
 
   describe "Vue SFCs" do

@@ -29,6 +29,7 @@ defmodule Volt.Pipeline do
     * `:sourcemap` — generate source maps (default: `true`)
     * `:minify` — minify output (default: `false`)
     * `:vapor` — use Vue Vapor mode (default: `false`)
+    * `:define` — compile-time replacements
     * `:rewrite_import` — function `(specifier -> {:rewrite, new} | :keep)` for import rewriting
     * `:plugins` — list of `Volt.Plugin` modules to run
   """
@@ -73,13 +74,44 @@ defmodule Volt.Pipeline do
     with {:ok, compiled} <- result do
       compiled = apply_transforms(compiled, path, plugins)
 
-      case Keyword.get(opts, :rewrite_import) do
-        rewrite_fn when is_function(rewrite_fn) ->
-          rewrite_compiled_imports(compiled, path, rewrite_fn)
-
-        nil ->
-          {:ok, compiled}
+      with {:ok, compiled} <- apply_defines(compiled, path, opts) do
+        rewrite_imports(compiled, path, opts)
       end
+    end
+  end
+
+  defp apply_defines(compiled, path, opts) do
+    define = Keyword.get(opts, :define, %{})
+
+    if define == %{} or plain_css?(path) do
+      {:ok, compiled}
+    else
+      rewrite_defines(compiled, path, define)
+    end
+  end
+
+  defp rewrite_defines(compiled, path, define) do
+    case Volt.JS.DefineRewriter.rewrite(compiled.code, js_filename(path), define) do
+      {:ok, code} ->
+        {:ok, %{compiled | code: code}}
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  defp plain_css?(path),
+    do: Path.extname(path) in @css_exts and not Volt.CSS.Modules.css_module?(path)
+
+  defp js_filename(path), do: Path.basename(path) |> Path.rootname() |> Kernel.<>(".js")
+
+  defp rewrite_imports(compiled, path, opts) do
+    case Keyword.get(opts, :rewrite_import) do
+      rewrite_fn when is_function(rewrite_fn) ->
+        rewrite_compiled_imports(compiled, path, rewrite_fn)
+
+      nil ->
+        {:ok, compiled}
     end
   end
 

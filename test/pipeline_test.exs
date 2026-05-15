@@ -19,6 +19,26 @@ defmodule Volt.PipelineTest do
       {:ok, result} = Volt.Pipeline.compile("app.js", "const x = a ?? b", target: :es2019)
       refute result.code =~ "??"
     end
+
+    test "applies compile-time defines" do
+      source = """
+      console.log(import.meta.env.MODE, import.meta.env.DEV, process.env.NODE_ENV)
+      """
+
+      {:ok, result} =
+        Volt.Pipeline.compile("app.ts", source,
+          define: %{
+            "import.meta.env.MODE" => ~s("development"),
+            "import.meta.env.DEV" => "true",
+            "process.env.NODE_ENV" => ~s("development")
+          }
+        )
+
+      assert result.code =~ ~s("development")
+      assert result.code =~ "true"
+      refute result.code =~ "import.meta.env.MODE"
+      refute result.code =~ "process.env.NODE_ENV"
+    end
   end
 
   describe "compile/3 with Vue SFC" do
