@@ -41,21 +41,39 @@ defmodule Volt do
 
   defp built_entry_path(build, prefix, overrides) do
     name = Keyword.get(overrides, :name) || entry_name(build.entry)
-    manifest_path = Path.join(build.outdir, "manifest.json")
     manifest_key = "#{name}.js"
 
-    file =
+    {file, public_dir} =
+      case manifest_entry(build.outdir, manifest_key) do
+        {:ok, file, public_dir} -> {file, public_dir}
+        :error -> {manifest_key, ""}
+      end
+
+    [prefix, public_dir, file]
+    |> Enum.reject(&(&1 == ""))
+    |> Path.join()
+    |> ensure_leading_slash()
+  end
+
+  defp manifest_entry(outdir, manifest_key) do
+    outdir
+    |> manifest_candidates()
+    |> Enum.find_value(:error, fn {manifest_path, public_dir} ->
       with {:ok, json} <- File.read(manifest_path),
            manifest when is_map(manifest) <- :json.decode(json),
            %{"file" => file} <- Map.get(manifest, manifest_key) do
-        file
+        {:ok, file, public_dir}
       else
-        _ -> manifest_key
+        _ -> nil
       end
+    end)
+  end
 
-    prefix
-    |> Path.join(file)
-    |> ensure_leading_slash()
+  defp manifest_candidates(outdir) do
+    [
+      {Path.join(outdir, "manifest.json"), ""},
+      {Path.join([outdir, "js", "manifest.json"]), "js"}
+    ]
   end
 
   defp entry_name(entry) do

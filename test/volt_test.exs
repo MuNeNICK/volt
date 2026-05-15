@@ -30,6 +30,19 @@ defmodule VoltTest do
            ) == "/assets/app-deadbeef.js"
   end
 
+  test "entry_path reads production manifest from js output directory" do
+    outdir = tmp_dir("manifest-js")
+    js_outdir = Path.join(outdir, "js")
+    File.mkdir_p!(js_outdir)
+    File.write!(Path.join(js_outdir, "manifest.json"), ~s({"app.js":{"file":"app-deadbeef.js"}}))
+
+    assert Volt.entry_path(ProdEndpoint,
+             entry: "assets/js/app.ts",
+             outdir: outdir,
+             prefix: "/assets"
+           ) == "/assets/js/app-deadbeef.js"
+  end
+
   defp tmp_dir(name) do
     Path.join([System.tmp_dir!(), "volt-test-#{System.unique_integer([:positive])}", name])
   end
